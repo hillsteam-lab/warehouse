@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WAREHOUSE — Location Management</title>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   DESIGN DIRECTION: Industrial brutalist — amber-on-charcoal,
+   monospace everywhere, hard grid lines, no rounded corners.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:        #0e0e0f;
+  --bg2:       #161618;
+  --bg3:       #1e1e21;
+  --border:    #2a2a2e;
+  --border2:   #3a3a3f;
+  --amber:     #f0a500;
+  --amber-dim: #7a5200;
+  --green:     #22c55e;
+  --green-dim: #14532d;
+  --blue:      #3b82f6;
+  --blue-dim:  #1e3a5f;
+  --red:       #ef4444;
+  --red-dim:   #7f1d1d;
+  --text:      #e8e8e8;
+  --text-dim:  #888;
+  --text-muted:#555;
+  --mono:      'Courier New', 'Lucida Console', monospace;
+  --sans:      'Courier New', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Scanline texture ─────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.08) 2px,
+    rgba(0,0,0,.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 2px solid var(--amber);
+  background: var(--bg2);
+  position: sticky; top: 0; z-index: 100;
+}
+#header .logo {
+  padding: 0 20px;
+  font-size: 11px;
+  letter-spacing: .2em;
+  color: var(--amber);
+  font-weight: bold;
+  text-transform: uppercase;
+  border-right: 1px solid var(--border);
+  height: 48px;
+  display: flex; align-items: center;
+  white-space: nowrap;
+}
+#header .logo span { opacity: .4; }
+nav { display: flex; flex: 1; }
+nav button {
+  background: none; border: none;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 0 20px;
+  height: 48px;
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  transition: color .15s, background .15s;
+  position: relative;
+}
+nav button:hover { color: var(--text); background: var(--bg3); }
+nav button.active {
+  color: var(--amber);
+  background: var(--bg3);
+}
+nav button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 2px;
+  background: var(--amber);
+}
+#header .right {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px;
+}
+#syncBtn, #settingsBtn {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+#syncBtn:hover, #settingsBtn:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+#syncBtn.syncing { color: var(--amber); border-color: var(--amber); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── Stats bar ────────────────────────────────────────────── */
+#statsBar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.stat {
+  flex: 1;
+  padding: 10px 20px;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+.stat:last-child { border-right: none; }
+.stat .val {
+  display: block;
+  font-size: 22px;
+  color: var(--amber);
+  letter-spacing: .05em;
+}
+.stat .lbl {
+  display: block;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Pages ────────────────────────────────────────────────── */
+.page { display: none; padding: 20px; }
+.page.active { display: block; }
+
+/* ── Toolbar ──────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+.search-wrap {
+  flex: 1;
+  position: relative;
+}
+.search-wrap::before {
+  content: '▶';
+  position: absolute;
+  left: 10px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--amber-dim);
+  font-size: 10px;
+  pointer-events: none;
+}
+input[type="text"], input[type="password"], input[type="url"] {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 8px 12px;
+  outline: none;
+  width: 100%;
+  transition: border-color .15s;
+}
+input[type="text"]:focus, input[type="password"]:focus, input[type="url"]:focus {
+  border-color: var(--amber);
+}
+.search-wrap input { padding-left: 28px; }
+.count-badge {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: .1em;
+  white-space: nowrap;
+}
+
+/* ── Table ────────────────────────────────────────────────── */
+.table-wrap {
+  border: 1px solid var(--border);
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+thead {
+  position: sticky; top: 0;
+  background: var(--bg3);
+  z-index: 10;
+}
+th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+th:hover { color: var(--amber); }
+th.sort-asc::after { content: ' ↑'; color: var(--amber); }
+th.sort-desc::after { content: ' ↓'; color: var(--amber); }
+td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg3); }
+.sku-cell { color: var(--amber); letter-spacing: .05em; }
+.loc-cell { color: var(--green); }
+.loc-cell.empty { color: var(--text-muted); font-style: italic; }
+.stock-cell { text-align: right; color: var(--text); }
+.actions { display: flex; gap: 6px; }
+.btn-sm {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.btn-sm:hover { border-color: var(--amber); color: var(--amber); }
+.btn-sm.blue:hover { border-color: var(--blue); color: var(--blue); }
+
+/* ── Locations page ───────────────────────────────────────── */
+.loc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.loc-card {
+  background: var(--bg2);
+  padding: 14px 16px;
+  cursor: default;
+  transition: background .1s;
+}
+.loc-card:hover { background: var(--bg3); }
+.loc-card .slot-name {
+  font-size: 14px;
+  color: var(--amber);
+  letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+.loc-card .slot-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.loc-card .slot-skus {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* ── Floor map page ───────────────────────────────────────── */
+#mapPage h2 {
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.zone-block { margin-bottom: 32px; }
+.zone-label {
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--amber-dim);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.zone-label strong { color: var(--amber); }
+.slot-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.slot-cell {
+  width: 70px; height: 56px;
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all .12s;
+  position: relative;
+}
+.slot-cell:hover { transform: scale(1.04); z-index: 2; }
+.slot-cell.occupied { border-color: var(--green-dim); background: #0d1f12; }
+.slot-cell.occupied:hover { border-color: var(--green); }
+.slot-cell.multi { border-color: var(--blue-dim); background: #0d1525; }
+.slot-cell.multi:hover { border-color: var(--blue); }
+.slot-cell .sc-name {
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-align: center;
+  color: var(--text-dim);
+  line-height: 1.2;
+  padding: 0 3px;
+}
+.slot-cell.occupied .sc-name { color: var(--green); }
+.slot-cell.multi .sc-name { color: var(--blue); }
+.slot-cell .sc-count {
+  font-size: 16px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.slot-cell.occupied .sc-count { color: var(--green); }
+.slot-cell.multi .sc-count { color: var(--blue); }
+
+/* ── Modals ───────────────────────────────────────────────── */
+.modal-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.8);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-top: 2px solid var(--amber);
+  width: 100%;
+  max-width: 440px;
+  padding: 24px;
+  position: relative;
+}
+.modal h3 {
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 20px;
+}
+.modal .sku-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: .08em;
+  margin-top: -14px;
+  margin-bottom: 18px;
+}
+.form-row { margin-bottom: 14px; }
+.form-row label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.modal-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 22px;
+  justify-content: flex-end;
+}
+.btn-primary {
+  background: var(--amber);
+  border: none;
+  color: #000;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-primary:hover { opacity: .85; }
+.btn-primary:disabled { opacity: .4; cursor: default; }
+.btn-secondary {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+.modal-close {
+  position: absolute;
+  top: 12px; right: 14px;
+  background: none; border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+
+/* Stock adjust buttons */
+.stock-adj {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+}
+.stock-adj button {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 16px;
+  width: 34px; height: 34px;
+  cursor: pointer;
+  transition: all .12s;
+  display: flex; align-items: center; justify-content: center;
+}
+.stock-adj button:hover { border-color: var(--amber); color: var(--amber); }
+#adjInput {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  padding: 6px;
+}
+
+/* slot modal list */
+#slotModalList {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+.slot-sku-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.slot-sku-row:last-child { border-bottom: none; }
+.slot-sku-row .s { color: var(--amber); }
+.slot-sku-row .n { color: var(--text-dim); font-size: 11px; }
+
+/* ── Toast ────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-size: 11px;
+  letter-spacing: .1em;
+  padding: 10px 20px;
+  z-index: 9000;
+  transition: transform .25s;
+  white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.ok { border-top: 2px solid var(--green); }
+#toast.err { border-top: 2px solid var(--red); }
+
+/* ── Empty / Loading states ───────────────────────────────── */
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.spinner {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Settings modal extras */
+#settingsModal .info {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--amber-dim);
+  background: var(--bg3);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div id="header">
+  <div class="logo">▣ <span>WH/</span>OPS</div>
+  <nav>
+    <button class="active" data-page="productsPage">Products</button>
+    <button data-page="locationsPage">Locations</button>
+    <button data-page="mapPage">Floor Map</button>
+  </nav>
+  <div class="right">
+    <button id="syncBtn">↻ Sync</button>
+    <button id="settingsBtn">⚙ Config</button>
+  </div>
+</div>
+
+<!-- ═══════════════ STATS BAR ═══════════════ -->
+<div id="statsBar">
+  <div class="stat"><span class="val" id="statTotal">—</span><span class="lbl">Total SKUs</span></div>
+  <div class="stat"><span class="val" id="statLocated">—</span><span class="lbl">Located</span></div>
+  <div class="stat"><span class="val" id="statUnlocated">—</span><span class="lbl">Unlocated</span></div>
+  <div class="stat"><span class="val" id="statSlots">—</span><span class="lbl">Unique Slots</span></div>
+</div>
+
+<!-- ═══════════════ PAGE: PRODUCTS ═══════════════ -->
+<div class="page active" id="productsPage">
+  <div class="toolbar">
+    <div class="search-wrap">
+      <input type="text" id="productSearch" placeholder="Search SKU, name, or location…" />
+    </div>
+    <span class="count-badge" id="productCount"></span>
+  </div>
+  <div class="table-wrap">
+    <table id="productTable">
+      <thead>
+        <tr>
+          <th data-col="sku">SKU</th>
+          <th data-col="name">Product Name</th>
+          <th data-col="warehouseLocation">Location</th>
+          <th data-col="onHand" style="text-align:right">On Hand</th>
+          <th style="width:140px">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="productTbody">
+        <tr><td colspan="5" class="empty-state"><span class="spinner"></span>Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ PAGE: LOCATIONS ═══════════════ -->
+<div class="page" id="locationsPage">
+  <div class="toolbar">
+    <div class="search-wrap">
+      <input type="text" id="locSearch" placeholder="Filter locations…" />
+    </div>
+    <span class="count-badge" id="locCount"></span>
+  </div>
+  <div id="locGrid" class="loc-grid"></div>
+</div>
+
+<!-- ═══════════════ PAGE: FLOOR MAP ═══════════════ -->
+<div class="page" id="mapPage">
+  <h2>Floor Map — grouped by zone (first 2 chars of location)</h2>
+  <div id="mapContainer"></div>
+</div>
+
+<!-- ═══════════════ MODAL: SETTINGS ═══════════════ -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <button class="modal-close" data-close="settingsModal">✕</button>
+    <h3>⚙ Worker Configuration</h3>
+    <div class="info">
+      Your Cloudflare Worker URL and access token are stored in <strong>localStorage</strong> only. No credentials are sent to any server except your own Worker.
+    </div>
+    <div class="form-row">
+      <label>Worker URL</label>
+      <input type="url" id="cfgUrl" placeholder="https://your-worker.workers.dev" />
+    </div>
+    <div class="form-row">
+      <label>Access Token (X-Auth-Token)</label>
+      <input type="password" id="cfgToken" placeholder="••••••••••••••••" />
+    </div>
+    <div class="form-row">
+      <label>ShipStation V2 Inventory Warehouse ID (optional)</label>
+      <input type="text" id="cfgWarehouseId" placeholder="e.g. 12345" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" data-close="settingsModal">Cancel</button>
+      <button class="btn-primary" id="cfgSave">Save & Sync</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: CHANGE LOCATION ═══════════════ -->
+<div class="modal-backdrop" id="locationModal">
+  <div class="modal">
+    <button class="modal-close" data-close="locationModal">✕</button>
+    <h3>Change Location</h3>
+    <div class="sku-tag" id="locModalSku"></div>
+    <div class="form-row">
+      <label>Warehouse Location</label>
+      <input type="text" id="locModalInput" placeholder="e.g. A-01-02" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" data-close="locationModal">Cancel</button>
+      <button class="btn-primary" id="locModalSave">Save Location</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: ADJUST STOCK ═══════════════ -->
+<div class="modal-backdrop" id="stockModal">
+  <div class="modal">
+    <button class="modal-close" data-close="stockModal">✕</button>
+    <h3>Adjust Stock</h3>
+    <div class="sku-tag" id="stockModalSku"></div>
+    <div class="form-row">
+      <label>Quantity</label>
+      <div class="stock-adj">
+        <button id="adjDec">−</button>
+        <input type="text" id="adjInput" value="0" />
+        <button id="adjInc">+</button>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" data-close="stockModal">Cancel</button>
+      <button class="btn-primary" id="stockModalSave">Set Stock</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: SLOT DETAIL ═══════════════ -->
+<div class="modal-backdrop" id="slotModal">
+  <div class="modal">
+    <button class="modal-close" data-close="slotModal">✕</button>
+    <h3 id="slotModalTitle">Slot Contents</h3>
+    <div id="slotModalList"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TOAST ═══════════════ -->
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+const state = {
+  products: [],      // { productId, sku, name, warehouseLocation, onHand }
+  sortCol: 'sku',
+  sortDir: 1,
+  filter: '',
+  locFilter: '',
+};
+
+// ════════════════════════════════════════════════════════════
+//  CONFIG  (localStorage)
+// ════════════════════════════════════════════════════════════
+function cfg() {
+  return {
+    url:         localStorage.getItem('wh_url') || '',
+    token:       localStorage.getItem('wh_token') || '',
+    warehouseId: localStorage.getItem('wh_warehouse_id') || '',
+  };
+}
+function saveCfg(url, token, wid) {
+  localStorage.setItem('wh_url', url.replace(/\/$/, ''));
+  localStorage.setItem('wh_token', token);
+  localStorage.setItem('wh_warehouse_id', wid);
+}
+
+// ════════════════════════════════════════════════════════════
+//  HTTP helpers
+// ════════════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+  const { url, token } = cfg();
+  if (!url || !token) throw new Error('Not configured');
+  const res = await fetch(url + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Auth-Token': token,
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}: ${txt.slice(0, 120)}`);
+  }
+  return res.json();
+}
+
+// ════════════════════════════════════════════════════════════
+//  DATA LOADING
+// ════════════════════════════════════════════════════════════
+async function loadAllProducts() {
+  const products = [];
+  let page = 1;
+  while (true) {
+    const data = await api(`/v1proxy/products?pageSize=500&page=${page}`);
+    const items = data.products || [];
+    for (const p of items) {
+      products.push({
+        productId:         p.productId,
+        sku:               p.sku || '',
+        name:              p.name || '',
+        warehouseLocation: p.warehouseLocation || '',
+        onHand:            null,
+        _raw:              p,         // keep full obj for PUT
+      });
+    }
+    if (items.length < 500) break;
+    page++;
+  }
+  return products;
+}
+
+async function loadInventory() {
+  const { warehouseId } = cfg();
+  if (!warehouseId) return {};
+  try {
+    const data = await api(`/proxy/inventory?inventory_warehouse_id=${warehouseId}&group_by=location`);
+    // data may be array or { items: [] }
+    const items = Array.isArray(data) ? data : (data.items || data.inventory || []);
+    const map = {};
+    for (const item of items) {
+      const sku = item.sku || item.skuAlias || '';
+      if (sku) map[sku] = item.on_hand ?? item.onHand ?? 0;
+    }
+    return map;
+  } catch (e) {
+    console.warn('Inventory load failed:', e.message);
+    return {};
+  }
+}
+
+async function syncAll() {
+  setSyncState(true);
+  try {
+    const [products, inventory] = await Promise.all([loadAllProducts(), loadInventory()]);
+    for (const p of products) {
+      p.onHand = inventory[p.sku] ?? null;
+    }
+    state.products = products;
+    renderAll();
+    toast('Sync complete — ' + products.length + ' SKUs', 'ok');
+  } catch (e) {
+    toast('Sync failed: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    setSyncState(false);
+  }
+}
+
+function setSyncState(on) {
+  document.getElementById('syncBtn').classList.toggle('syncing', on);
+  document.getElementById('syncBtn').textContent = on ? '↻ Syncing…' : '↻ Sync';
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════════
+function renderAll() {
+  renderStats();
+  renderProducts();
+  renderLocations();
+  renderMap();
+}
+
+function renderStats() {
+  const p = state.products;
+  const located = p.filter(x => x.warehouseLocation).length;
+  const slots = new Set(p.filter(x => x.warehouseLocation).map(x => x.warehouseLocation)).size;
+  document.getElementById('statTotal').textContent     = p.length;
+  document.getElementById('statLocated').textContent   = located;
+  document.getElementById('statUnlocated').textContent = p.length - located;
+  document.getElementById('statSlots').textContent     = slots;
+}
+
+/* ─── Products table ─── */
+function filteredProducts() {
+  const f = state.filter.toLowerCase();
+  let list = state.products;
+  if (f) list = list.filter(p =>
+    p.sku.toLowerCase().includes(f) ||
+    p.name.toLowerCase().includes(f) ||
+    p.warehouseLocation.toLowerCase().includes(f)
+  );
+  list = [...list].sort((a, b) => {
+    const va = (a[state.sortCol] ?? '').toString().toLowerCase();
+    const vb = (b[state.sortCol] ?? '').toString().toLowerCase();
+    // numeric sort for onHand
+    if (state.sortCol === 'onHand') {
+      return (+(a.onHand ?? -1) - +(b.onHand ?? -1)) * state.sortDir;
+    }
+    return va < vb ? -state.sortDir : va > vb ? state.sortDir : 0;
+  });
+  return list;
+}
+
+function renderProducts() {
+  const list = filteredProducts();
+  document.getElementById('productCount').textContent = list.length + ' / ' + state.products.length + ' SKUs';
+  const tbody = document.getElementById('productTbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No products found</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p => `
+    <tr data-id="${p.productId}">
+      <td class="sku-cell">${esc(p.sku)}</td>
+      <td>${esc(p.name)}</td>
+      <td class="loc-cell ${p.warehouseLocation ? '' : 'empty'}">${esc(p.warehouseLocation) || '— unlocated —'}</td>
+      <td class="stock-cell">${p.onHand !== null ? p.onHand : '—'}</td>
+      <td class="actions">
+        <button class="btn-sm" onclick="openLocationModal('${p.productId}')">Location</button>
+        <button class="btn-sm blue" onclick="openStockModal('${p.productId}')">Stock</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+/* ─── Sort headers ─── */
+document.querySelectorAll('th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (state.sortCol === col) state.sortDir *= -1;
+    else { state.sortCol = col; state.sortDir = 1; }
+    document.querySelectorAll('th').forEach(t => t.classList.remove('sort-asc','sort-desc'));
+    th.classList.add(state.sortDir === 1 ? 'sort-asc' : 'sort-desc');
+    renderProducts();
+  });
+});
+
+/* ─── Locations page ─── */
+function renderLocations() {
+  const f = state.locFilter.toLowerCase();
+  const map = groupByLocation();
+  const grid = document.getElementById('locGrid');
+  const entries = [...map.entries()]
+    .filter(([loc]) => !f || loc.toLowerCase().includes(f))
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  document.getElementById('locCount').textContent = entries.length + ' slots';
+  if (!entries.length) {
+    grid.innerHTML = `<div class="empty-state">No locations found</div>`;
+    return;
+  }
+  grid.innerHTML = entries.map(([loc, products]) => `
+    <div class="loc-card">
+      <div class="slot-name">${esc(loc)}</div>
+      <div class="slot-meta">${products.length} SKU${products.length !== 1 ? 's' : ''}</div>
+      <div class="slot-skus">${products.slice(0, 3).map(p => `<span class="sku-cell">${esc(p.sku)}</span>`).join(', ')}${products.length > 3 ? ` <span style="color:var(--text-muted)">+${products.length - 3} more</span>` : ''}</div>
+    </div>
+  `).join('');
+}
+
+/* ─── Floor map ─── */
+function renderMap() {
+  const map = groupByLocation();
+  // group by first 2 chars
+  const zones = {};
+  for (const [loc, products] of map.entries()) {
+    const zone = loc.slice(0, 2).toUpperCase() || '??';
+    if (!zones[zone]) zones[zone] = [];
+    zones[zone].push({ loc, products });
+  }
+  const container = document.getElementById('mapContainer');
+  if (!map.size) {
+    container.innerHTML = `<div class="empty-state">No location data yet — run a sync first</div>`;
+    return;
+  }
+  container.innerHTML = Object.entries(zones)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([zone, slots]) => `
+      <div class="zone-block">
+        <div class="zone-label">Zone <strong>${esc(zone)}</strong> — ${slots.length} slot${slots.length !== 1 ? 's' : ''}</div>
+        <div class="slot-grid">
+          ${slots.map(({ loc, products }) => {
+            const cls = products.length > 1 ? 'multi' : 'occupied';
+            return `<div class="slot-cell ${cls}" onclick="openSlotModal('${esc(loc)}')" title="${esc(loc)}">
+              <div class="sc-count">${products.length}</div>
+              <div class="sc-name">${esc(loc)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('');
+}
+
+function groupByLocation() {
+  const map = new Map();
+  for (const p of state.products) {
+    if (!p.warehouseLocation) continue;
+    if (!map.has(p.warehouseLocation)) map.set(p.warehouseLocation, []);
+    map.get(p.warehouseLocation).push(p);
+  }
+  return map;
+}
+
+// ════════════════════════════════════════════════════════════
+//  MODALS
+// ════════════════════════════════════════════════════════════
+let _activeProduct = null;
+
+function getProduct(id) {
+  return state.products.find(p => String(p.productId) === String(id));
+}
+
+/* ─── Location modal ─── */
+function openLocationModal(id) {
+  _activeProduct = getProduct(id);
+  if (!_activeProduct) return;
+  document.getElementById('locModalSku').textContent = `SKU: ${_activeProduct.sku} — ${_activeProduct.name}`;
+  document.getElementById('locModalInput').value = _activeProduct.warehouseLocation;
+  openModal('locationModal');
+}
+
+document.getElementById('locModalSave').addEventListener('click', async () => {
+  const p = _activeProduct;
+  if (!p) return;
+  const newLoc = document.getElementById('locModalInput').value.trim();
+  const btn = document.getElementById('locModalSave');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    // Build updated product object
+    const body = { ...p._raw, warehouseLocation: newLoc };
+    await api(`/v1proxy/products/${p.productId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    p.warehouseLocation = newLoc;
+    p._raw.warehouseLocation = newLoc;
+    renderAll();
+    closeModal('locationModal');
+    toast('Location updated', 'ok');
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Location';
+  }
+});
+
+/* ─── Stock modal ─── */
+function openStockModal(id) {
+  _activeProduct = getProduct(id);
+  if (!_activeProduct) return;
+  document.getElementById('stockModalSku').textContent = `SKU: ${_activeProduct.sku} — ${_activeProduct.name}`;
+  document.getElementById('adjInput').value = _activeProduct.onHand ?? 0;
+  openModal('stockModal');
+}
+
+document.getElementById('adjDec').addEventListener('click', () => {
+  const el = document.getElementById('adjInput');
+  el.value = Math.max(0, (parseInt(el.value) || 0) - 1);
+});
+document.getElementById('adjInc').addEventListener('click', () => {
+  const el = document.getElementById('adjInput');
+  el.value = (parseInt(el.value) || 0) + 1;
+});
+
+document.getElementById('stockModalSave').addEventListener('click', async () => {
+  const p = _activeProduct;
+  if (!p) return;
+  const qty = parseInt(document.getElementById('adjInput').value) || 0;
+  const btn = document.getElementById('stockModalSave');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const { warehouseId } = cfg();
+  try {
+    await api(`/proxy/inventory`, {
+      method: 'POST',
+      body: JSON.stringify({
+        sku: p.sku,
+        inventory_warehouse_id: warehouseId || undefined,
+        quantity: qty,
+        on_hand: qty,
+      }),
+    });
+    p.onHand = qty;
+    renderAll();
+    closeModal('stockModal');
+    toast('Stock updated to ' + qty, 'ok');
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Set Stock';
+  }
+});
+
+/* ─── Slot detail modal ─── */
+function openSlotModal(loc) {
+  const map = groupByLocation();
+  const products = map.get(loc) || [];
+  document.getElementById('slotModalTitle').textContent = `Slot: ${loc}`;
+  document.getElementById('slotModalList').innerHTML = products.map(p => `
+    <div class="slot-sku-row">
+      <span class="s">${esc(p.sku)}</span>
+      <span class="n">${esc(p.name.slice(0, 40))}</span>
+    </div>
+  `).join('') || '<div class="empty-state">No products</div>';
+  openModal('slotModal');
+}
+
+/* ─── Settings modal ─── */
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  const c = cfg();
+  document.getElementById('cfgUrl').value = c.url;
+  document.getElementById('cfgToken').value = c.token;
+  document.getElementById('cfgWarehouseId').value = c.warehouseId;
+  openModal('settingsModal');
+});
+
+document.getElementById('cfgSave').addEventListener('click', () => {
+  const url   = document.getElementById('cfgUrl').value.trim();
+  const token = document.getElementById('cfgToken').value.trim();
+  const wid   = document.getElementById('cfgWarehouseId').value.trim();
+  if (!url || !token) { toast('URL and token are required', 'err'); return; }
+  saveCfg(url, token, wid);
+  closeModal('settingsModal');
+  syncAll();
+});
+
+/* ─── Modal helpers ─── */
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close));
+});
+document.querySelectorAll('.modal-backdrop').forEach(bd => {
+  bd.addEventListener('click', e => {
+    if (e.target === bd) closeModal(bd.id);
+  });
+});
+
+// ════════════════════════════════════════════════════════════
+//  NAV
+// ════════════════════════════════════════════════════════════
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.page).classList.add('active');
+  });
+});
+
+// ════════════════════════════════════════════════════════════
+//  SEARCH / FILTER
+// ════════════════════════════════════════════════════════════
+document.getElementById('productSearch').addEventListener('input', e => {
+  state.filter = e.target.value;
+  renderProducts();
+});
+document.getElementById('locSearch').addEventListener('input', e => {
+  state.locFilter = e.target.value;
+  renderLocations();
+});
+
+// ════════════════════════════════════════════════════════════
+//  SYNC BUTTON
+// ════════════════════════════════════════════════════════════
+document.getElementById('syncBtn').addEventListener('click', () => {
+  const c = cfg();
+  if (!c.url || !c.token) {
+    document.getElementById('cfgUrl').value = c.url;
+    document.getElementById('cfgToken').value = c.token;
+    document.getElementById('cfgWarehouseId').value = c.warehouseId;
+    openModal('settingsModal');
+    return;
+  }
+  syncAll();
+});
+
+// ════════════════════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════════════════════
+let _toastTimer;
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3000);
+}
+
+// ════════════════════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ════════════════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════════════════
+(function boot() {
+  const c = cfg();
+  if (!c.url || !c.token) {
+    // First-run: show settings modal
+    document.getElementById('cfgUrl').value = '';
+    document.getElementById('cfgToken').value = '';
+    document.getElementById('cfgWarehouseId').value = '';
+    openModal('settingsModal');
+    // Clear the loading row
+    document.getElementById('productTbody').innerHTML =
+      `<tr><td colspan="5" class="empty-state">Configure your Worker to begin</td></tr>`;
+  } else {
+    syncAll();
+  }
+})();
+</script>
+</body>
+</html>
