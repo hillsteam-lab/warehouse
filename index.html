@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WHOPS — Warehouse Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:       #0f0f0f;
+  --s1:       #1a1a1a;
+  --s2:       #222222;
+  --s3:       #2a2a2a;
+  --b0:       #2e2e2e;
+  --b1:       #3a3a3a;
+  --b2:       #484848;
+  --t0:       #f0ede8;
+  --t1:       #a8a49f;
+  --t2:       #6b6762;
+  --t3:       #4a4744;
+  --acid:     #c8f060;
+  --acid-dim: rgba(200,240,96,.1);
+  --acid-mid: rgba(200,240,96,.22);
+  --green:    #4ade80;
+  --green-bg: rgba(74,222,128,.09);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,.09);
+  --red:      #f87171;
+  --red-bg:   rgba(248,113,113,.09);
+  --blue:     #60a5fa;
+  --blue-bg:  rgba(96,165,250,.09);
+  --sans:     'DM Sans', sans-serif;
+  --mono:     'DM Mono', monospace;
+  --hh:       56px;
+  --sw:       200px;
+  --r-card:   10px;
+  --r-btn:    8px;
+  --r-tag:    6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { background: var(--bg); color: var(--t0); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+/* ── LAYOUT ── */
+#shell { display: grid; grid-template-rows: var(--hh) 1fr; grid-template-columns: var(--sw) 1fr; height: 100vh; }
+
+/* ── HEADER ── */
+#header {
+  grid-column: 1/-1;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--b0);
+  background: var(--s1);
+  z-index: 50;
+}
+.logo { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--acid); letter-spacing: .04em; flex-shrink: 0; }
+.logo span { color: var(--t3); }
+#statusDot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--t3); flex-shrink: 0; transition: background .3s, box-shadow .3s;
+}
+#statusDot.loading { background: var(--amber); animation: dp 1.2s ease-in-out infinite; }
+#statusDot.ok      { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+#statusDot.err     { background: var(--red); }
+@keyframes dp { 0%,100%{opacity:1} 50%{opacity:.45} }
+#statusText { font-size: 12px; color: var(--t2); font-family: var(--mono); margin-right: auto; }
+.hbtn {
+  background: none; border: 1px solid var(--b1); border-radius: var(--r-btn);
+  color: var(--t1); font-family: var(--sans); font-size: 13px;
+  padding: 6px 14px; cursor: pointer; transition: all .14s;
+  display: flex; align-items: center; gap: 6px;
+}
+.hbtn:hover { border-color: var(--b2); color: var(--t0); background: var(--s2); }
+.hbtn:disabled { opacity: .4; cursor: default; }
+
+/* ── SIDEBAR ── */
+#sidebar {
+  background: var(--s1); border-right: 1px solid var(--b0);
+  padding: 16px 10px; display: flex; flex-direction: column; gap: 3px;
+  overflow-y: auto;
+}
+.nav-label {
+  font-family: var(--mono); font-size: 10px; font-variant: small-caps;
+  letter-spacing: .12em; color: var(--t3); padding: 10px 8px 5px;
+  text-transform: uppercase;
+}
+.nav-label:first-child { padding-top: 0; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r-tag);
+  border: 1px solid transparent; cursor: pointer;
+  color: var(--t1); font-size: 13px; font-weight: 500;
+  background: none; width: 100%; text-align: left;
+  transition: all .13s; font-family: var(--sans);
+}
+.nav-item:hover { color: var(--t0); background: var(--s2); }
+.nav-item.active { color: var(--acid); background: var(--acid-dim); border-color: rgba(200,240,96,.15); }
+.nav-item .ico { font-size: 14px; flex-shrink: 0; }
+.sb-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--b0); display: flex; flex-direction: column; gap: 2px; }
+.sb-stat { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; }
+.sb-stat .l { font-size: 11px; color: var(--t2); }
+.sb-stat .v { font-family: var(--mono); font-size: 12px; color: var(--t1); }
+
+/* ── MAIN ── */
+#main { overflow-y: auto; background: var(--bg); }
+.page { display: none; padding: 28px; }
+.page.active { display: block; }
+.pg-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; gap: 16px; }
+.pg-title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.pg-sub { font-size: 12px; color: var(--t2); margin-top: 3px; }
+
+/* ── STAT CARDS ── */
+.stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 22px; }
+.sc { background: var(--s1); border: 1px solid var(--b0); border-radius: var(--r-card); padding: 16px 18px; }
+.sc .lbl { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--t2); margin-bottom: 8px; }
+.sc .val { font-size: 30px; font-weight: 300; letter-spacing: -.02em; color: var(--t0); line-height: 1; }
+.sc.c-acid .val  { color: var(--acid); }
+.sc.c-green .val { color: var(--green); }
+.sc.c-amber .val { color: var(--amber); }
+.sc.c-blue .val  { color: var(--blue); }
+
+/* ── TOOLBAR ── */
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.sw { flex: 1; position: relative; }
+.sw .si { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--t2); font-size: 15px; pointer-events: none; }
+input[type="text"], input[type="password"], input[type="url"], input[type="number"] {
+  background: var(--s1); border: 1px solid var(--b0); border-radius: var(--r-btn);
+  color: var(--t0); font-family: var(--sans); font-size: 13px;
+  padding: 9px 12px; outline: none; width: 100%;
+  transition: border-color .14s, box-shadow .14s;
+}
+input:focus { border-color: var(--acid); box-shadow: 0 0 0 3px var(--acid-dim); }
+.sw input { padding-left: 36px; }
+.cpill {
+  background: var(--s2); border: 1px solid var(--b0); border-radius: 20px;
+  font-family: var(--mono); font-size: 11px; color: var(--t2); padding: 4px 11px; white-space: nowrap;
+}
+
+/* ── TABLE ── */
+.tw { background: var(--s1); border: 1px solid var(--b0); border-radius: var(--r-card); overflow: hidden; }
+.ts { overflow-x: auto; max-height: calc(100vh - 310px); }
+table { width: 100%; border-collapse: collapse; }
+thead { position: sticky; top: 0; background: var(--s2); z-index: 5; }
+th {
+  padding: 10px 14px; text-align: left;
+  font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--t2); border-bottom: 1px solid var(--b0);
+  white-space: nowrap; user-select: none; cursor: pointer; transition: color .12s;
+}
+th:hover { color: var(--t1); }
+th.sa::after { content: ' ↑'; color: var(--acid); }
+th.sd::after { content: ' ↓'; color: var(--acid); }
+td { padding: 9px 14px; border-bottom: 1px solid var(--b0); vertical-align: middle; font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--s2); }
+.td-sku { font-family: var(--mono); font-size: 12px; color: var(--acid); font-weight: 500; }
+.td-name { max-width: 260px; color: var(--t0); }
+.td-name span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-qty { font-family: var(--mono); text-align: right; }
+.td-qty.z { color: var(--t3); }
+.loc-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--blue-bg); border: 1px solid rgba(96,165,250,.18);
+  border-radius: var(--r-tag); padding: 3px 8px;
+  font-family: var(--mono); font-size: 11px; color: var(--blue); white-space: nowrap;
+}
+.loc-tag.empty { background: none; border-color: var(--b0); color: var(--t3); font-style: italic; }
+.ra { display: flex; gap: 6px; }
+.bg {
+  background: none; border: 1px solid var(--b1); border-radius: var(--r-tag);
+  color: var(--t1); font-family: var(--sans); font-size: 12px;
+  padding: 4px 10px; cursor: pointer; transition: all .12s; white-space: nowrap;
+}
+.bg:hover { border-color: var(--b2); color: var(--t0); background: var(--s3); }
+.bg.blue:hover { border-color: var(--blue); color: var(--blue); }
+
+/* ── LOCATIONS ── */
+.loc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 10px; }
+.loc-card {
+  background: var(--s1); border: 1px solid var(--b0); border-radius: var(--r-card);
+  padding: 16px; transition: border-color .14s, background .14s; cursor: default;
+}
+.loc-card:hover { border-color: var(--b2); background: var(--s2); }
+.lc-slot { font-family: var(--mono); font-size: 15px; color: var(--blue); font-weight: 500; margin-bottom: 6px; }
+.lc-cnt { font-size: 11px; color: var(--t2); margin-bottom: 8px; }
+.lc-skus { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.sku-mini { background: var(--s3); border-radius: 4px; font-family: var(--mono); font-size: 10px; color: var(--acid); padding: 2px 6px; }
+.lc-more { font-size: 10px; color: var(--t3); }
+
+/* ── FLOOR MAP ── */
+.zone-block { margin-bottom: 30px; }
+.zone-hd { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.zone-lbl { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--t2); white-space: nowrap; }
+.zone-lbl strong { color: var(--acid); }
+.zone-line { flex: 1; height: 1px; background: var(--b0); }
+.zone-cnt { font-family: var(--mono); font-size: 10px; color: var(--t3); white-space: nowrap; }
+.slot-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.slot-cell {
+  width: 74px; height: 62px;
+  background: var(--s1); border: 1px solid var(--b0); border-radius: var(--r-tag);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  cursor: pointer; transition: transform .12s, border-color .12s, background .12s;
+}
+.slot-cell:hover { transform: translateY(-2px); border-color: var(--b2); }
+.slot-cell.single { border-color: rgba(74,222,128,.22); background: var(--green-bg); }
+.slot-cell.single:hover { border-color: var(--green); }
+.slot-cell.multi  { border-color: rgba(96,165,250,.22); background: var(--blue-bg); }
+.slot-cell.multi:hover  { border-color: var(--blue); }
+.sc-name { font-family: var(--mono); font-size: 9px; color: var(--t2); text-align: center; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.slot-cell.single .sc-name { color: var(--green); }
+.slot-cell.multi  .sc-name { color: var(--blue); }
+.sc-cnt { font-family: var(--mono); font-size: 20px; font-weight: 300; line-height: 1; color: var(--t3); }
+.slot-cell.single .sc-cnt { color: var(--green); }
+.slot-cell.multi  .sc-cnt { color: var(--blue); }
+
+/* ── MODALS ── */
+.mbk { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.72); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; }
+.mbk.open { display: flex; }
+.modal {
+  background: var(--s1); border: 1px solid var(--b1); border-radius: var(--r-card);
+  width: 100%; max-width: 440px; padding: 28px; position: relative;
+  box-shadow: 0 24px 64px rgba(0,0,0,.55); animation: mi .18s ease;
+}
+@keyframes mi { from{opacity:0;transform:translateY(8px) scale(.98)} to{opacity:1;transform:none} }
+.mc {
+  position: absolute; top: 14px; right: 14px;
+  background: none; border: none; color: var(--t2); font-size: 17px;
+  cursor: pointer; line-height: 1; padding: 4px; border-radius: 4px; transition: all .12s;
+}
+.mc:hover { color: var(--t0); background: var(--s3); }
+.modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 3px; }
+.modal .msub { font-size: 12px; color: var(--t2); font-family: var(--mono); margin-bottom: 22px; }
+.fr { margin-bottom: 14px; }
+.fr label { display: block; font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--t2); margin-bottom: 6px; }
+.mbtns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 22px; }
+.btn-p {
+  background: var(--acid); border: none; border-radius: var(--r-btn);
+  color: #0f0f0f; font-family: var(--sans); font-size: 13px; font-weight: 600;
+  padding: 9px 20px; cursor: pointer; transition: opacity .14s;
+}
+.btn-p:hover { opacity: .87; }
+.btn-p:disabled { opacity: .35; cursor: default; }
+.btn-s {
+  background: none; border: 1px solid var(--b1); border-radius: var(--r-btn);
+  color: var(--t1); font-family: var(--sans); font-size: 13px;
+  padding: 9px 20px; cursor: pointer; transition: all .14s;
+}
+.btn-s:hover { border-color: var(--b2); color: var(--t0); background: var(--s2); }
+.qty-row { display: flex; align-items: center; gap: 8px; }
+.qty-btn {
+  background: var(--s2); border: 1px solid var(--b1); border-radius: var(--r-tag);
+  color: var(--t0); font-size: 18px; width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: all .12s;
+}
+.qty-btn:hover { border-color: var(--acid); color: var(--acid); }
+#adjInput { text-align: center; font-family: var(--mono); font-size: 20px; flex: 1; }
+.ibox {
+  background: var(--s2); border: 1px solid var(--b0); border-left: 3px solid var(--acid);
+  border-radius: var(--r-tag); padding: 11px 14px;
+  font-size: 12px; color: var(--t1); line-height: 1.6; margin-bottom: 18px;
+}
+#slotModalList { max-height: 250px; overflow-y: auto; margin-top: 6px; }
+.smr { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--b0); gap: 12px; }
+.smr:last-child { border-bottom: none; }
+.smr .s { font-family: var(--mono); font-size: 12px; color: var(--acid); flex-shrink: 0; }
+.smr .n { font-size: 12px; color: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── TOASTS ── */
+#tc { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+.toast {
+  background: var(--s2); border: 1px solid var(--b1); border-radius: var(--r-btn);
+  padding: 11px 16px; font-size: 13px; color: var(--t0);
+  min-width: 210px; max-width: 320px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  pointer-events: auto; display: flex; align-items: center; gap: 10px;
+  animation: ti .22s ease;
+}
+@keyframes ti { from{opacity:0;transform:translateX(14px)} to{opacity:1;transform:none} }
+.toast.out { animation: to_ .18s ease forwards; }
+@keyframes to_ { to{opacity:0;transform:translateX(14px)} }
+.toast.ok  { border-left: 3px solid var(--green); }
+.toast.err { border-left: 3px solid var(--red); }
+.toast .ti { font-size: 14px; flex-shrink: 0; }
+.toast.ok  .ti { color: var(--green); }
+.toast.err .ti { color: var(--red); }
+
+/* ── MISC ── */
+.empty-state { padding: 56px 20px; text-align: center; color: var(--t3); font-size: 13px; }
+.li { display: inline-flex; align-items: center; gap: 8px; color: var(--t2); font-size: 13px; }
+.spinner { width: 13px; height: 13px; border: 2px solid var(--b1); border-top-color: var(--acid); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to{transform:rotate(360deg)} }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--b2); }
+</style>
+</head>
+<body>
+<div id="shell">
+
+<!-- HEADER -->
+<header id="header">
+  <div class="logo">WH<span>/</span>OPS</div>
+  <div id="statusDot"></div>
+  <span id="statusText">Not connected</span>
+  <button class="hbtn" id="syncBtn">↻ Sync</button>
+  <button class="hbtn" id="settingsBtn">⚙ Settings</button>
+</header>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="nav-label">Views</div>
+  <button class="nav-item active" data-page="productsPage"><span class="ico">▤</span>Products</button>
+  <button class="nav-item" data-page="locationsPage"><span class="ico">◫</span>Locations</button>
+  <button class="nav-item" data-page="mapPage"><span class="ico">⊞</span>Floor Map</button>
+  <div class="sb-footer">
+    <div class="sb-stat"><span class="l">Total SKUs</span><span class="v" id="sbTotal">—</span></div>
+    <div class="sb-stat"><span class="l">Located</span><span class="v" id="sbLocated">—</span></div>
+    <div class="sb-stat"><span class="l">Unique slots</span><span class="v" id="sbSlots">—</span></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main id="main">
+
+  <!-- PRODUCTS -->
+  <div class="page active" id="productsPage">
+    <div class="pg-head">
+      <div><div class="pg-title">Products</div><div class="pg-sub">All SKUs — stock levels and warehouse locations</div></div>
+    </div>
+    <div class="stat-row">
+      <div class="sc c-acid"><div class="lbl">Total SKUs</div><div class="val" id="statTotal">—</div></div>
+      <div class="sc c-green"><div class="lbl">Located</div><div class="val" id="statLocated">—</div></div>
+      <div class="sc c-amber"><div class="lbl">Unlocated</div><div class="val" id="statUnlocated">—</div></div>
+      <div class="sc c-blue"><div class="lbl">Unique slots</div><div class="val" id="statSlots">—</div></div>
+    </div>
+    <div class="toolbar">
+      <div class="sw"><span class="si">⌕</span><input type="text" id="productSearch" placeholder="Search SKU, name, or location…" /></div>
+      <div class="cpill" id="productCount">— SKUs</div>
+    </div>
+    <div class="tw"><div class="ts">
+      <table>
+        <thead><tr>
+          <th data-col="sku">SKU</th>
+          <th data-col="name">Product Name</th>
+          <th data-col="warehouseLocation">Location</th>
+          <th data-col="onHand" style="text-align:right">On Hand</th>
+          <th style="width:130px;cursor:default">Actions</th>
+        </tr></thead>
+        <tbody id="productTbody">
+          <tr><td colspan="5" class="empty-state"><div class="li" style="justify-content:center"><div class="spinner"></div>Waiting for sync…</div></td></tr>
+        </tbody>
+      </table>
+    </div></div>
+  </div>
+
+  <!-- LOCATIONS -->
+  <div class="page" id="locationsPage">
+    <div class="pg-head"><div><div class="pg-title">Locations</div><div class="pg-sub">Products grouped by warehouse slot</div></div></div>
+    <div class="toolbar">
+      <div class="sw"><span class="si">⌕</span><input type="text" id="locSearch" placeholder="Filter locations…" /></div>
+      <div class="cpill" id="locCount">— slots</div>
+    </div>
+    <div id="locGrid" class="loc-grid"></div>
+  </div>
+
+  <!-- FLOOR MAP -->
+  <div class="page" id="mapPage">
+    <div class="pg-head"><div><div class="pg-title">Floor Map</div><div class="pg-sub">Occupied slots grouped by zone — first 2 chars of location code</div></div></div>
+    <div id="mapContainer"></div>
+  </div>
+
+</main>
+</div>
+
+<!-- MODAL: SETTINGS -->
+<div class="mbk" id="settingsModal">
+  <div class="modal">
+    <button class="mc" data-close="settingsModal">✕</button>
+    <h3>Worker Configuration</h3>
+    <p class="msub">Credentials stored in localStorage only</p>
+    <div class="ibox">Enter your Cloudflare Worker URL and the <strong>AUTH_TOKEN</strong> you set as a Secret. No API keys are ever sent from this app — all credentials stay in your Worker.</div>
+    <div class="fr"><label>Worker URL</label><input type="url" id="cfgUrl" placeholder="https://your-worker.workers.dev" /></div>
+    <div class="fr"><label>Access Token</label><input type="password" id="cfgToken" placeholder="••••••••••••••••" /></div>
+    <div class="fr"><label>Inventory Warehouse ID <span style="color:var(--t3)">(optional)</span></label><input type="text" id="cfgWarehouseId" placeholder="e.g. 12345" /></div>
+    <div class="mbtns"><button class="btn-s" data-close="settingsModal">Cancel</button><button class="btn-p" id="cfgSave">Save &amp; Sync</button></div>
+  </div>
+</div>
+
+<!-- MODAL: CHANGE LOCATION -->
+<div class="mbk" id="locationModal">
+  <div class="modal">
+    <button class="mc" data-close="locationModal">✕</button>
+    <h3>Change Location</h3>
+    <p class="msub" id="locModalSku"></p>
+    <div class="fr"><label>Warehouse Location</label><input type="text" id="locModalInput" placeholder="e.g. A-01-02" /></div>
+    <div class="mbtns"><button class="btn-s" data-close="locationModal">Cancel</button><button class="btn-p" id="locModalSave">Save Location</button></div>
+  </div>
+</div>
+
+<!-- MODAL: ADJUST STOCK -->
+<div class="mbk" id="stockModal">
+  <div class="modal">
+    <button class="mc" data-close="stockModal">✕</button>
+    <h3>Adjust Stock</h3>
+    <p class="msub" id="stockModalSku"></p>
+    <div class="fr">
+      <label>Quantity (set exact value)</label>
+      <div class="qty-row">
+        <button class="qty-btn" id="adjDec">−</button>
+        <input type="number" id="adjInput" value="0" min="0" />
+        <button class="qty-btn" id="adjInc">+</button>
+      </div>
+    </div>
+    <div class="mbtns"><button class="btn-s" data-close="stockModal">Cancel</button><button class="btn-p" id="stockModalSave">Set Stock</button></div>
+  </div>
+</div>
+
+<!-- MODAL: SLOT DETAIL -->
+<div class="mbk" id="slotModal">
+  <div class="modal">
+    <button class="mc" data-close="slotModal">✕</button>
+    <h3 id="slotModalTitle">Slot</h3>
+    <p class="msub" id="slotModalMeta"></p>
+    <div id="slotModalList"></div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div id="tc"></div>
+
+<script>
+const S = { products:[], sortCol:'sku', sortDir:1, filter:'', locFilter:'' };
+
+// ── CONFIG ──
+const cfg = () => ({
+  url:         localStorage.getItem('wh_url')          || '',
+  token:       localStorage.getItem('wh_token')        || '',
+  warehouseId: localStorage.getItem('wh_warehouse_id') || '',
+});
+const saveCfg = (url, token, wid) => {
+  localStorage.setItem('wh_url',          url.replace(/\/$/,''));
+  localStorage.setItem('wh_token',        token);
+  localStorage.setItem('wh_warehouse_id', wid);
+};
+
+// ── API ──
+async function api(path, opts={}) {
+  const {url, token} = cfg();
+  if (!url||!token) throw new Error('Not configured — open Settings first');
+  const res = await fetch(url+path, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', 'X-Auth-Token':token, ...(opts.headers||{}) },
+  });
+  if (!res.ok) { const t=await res.text().catch(()=>''); throw new Error(`HTTP ${res.status}${t?': '+t.slice(0,100):''}`); }
+  return res.json();
+}
+
+// ── LOAD ──
+async function loadAllProducts() {
+  const all=[]; let page=1;
+  while(true) {
+    const data = await api(`/v1proxy/products?pageSize=500&page=${page}`);
+    const items = data.products||[];
+    for(const p of items) all.push({ productId:p.productId, sku:p.sku||'', name:p.name||'', warehouseLocation:p.warehouseLocation||'', onHand:null, _raw:p });
+    if(items.length<500) break;
+    page++;
+  }
+  return all;
+}
+async function loadInventory() {
+  const {warehouseId}=cfg(); if(!warehouseId) return {};
+  try {
+    const data = await api(`/proxy/inventory?inventory_warehouse_id=${warehouseId}&group_by=location`);
+    const items = Array.isArray(data)?data:(data.items||data.inventory||[]);
+    const map={};
+    for(const item of items) { const sku=item.sku||item.skuAlias||''; if(sku) map[sku]=item.on_hand??item.onHand??0; }
+    return map;
+  } catch(e) { console.warn('Inventory:',e.message); return {}; }
+}
+
+async function syncAll() {
+  setStatus('loading','Syncing…');
+  document.getElementById('syncBtn').disabled=true;
+  document.getElementById('productTbody').innerHTML=`<tr><td colspan="5" class="empty-state"><div class="li" style="justify-content:center"><div class="spinner"></div>Loading products…</div></td></tr>`;
+  try {
+    const [products,inventory]=await Promise.all([loadAllProducts(),loadInventory()]);
+    for(const p of products) p.onHand=inventory[p.sku]??null;
+    S.products=products;
+    renderAll();
+    setStatus('ok',`${products.length} SKUs · synced ${timeNow()}`);
+    toast(`Synced ${products.length} SKUs`,'ok');
+  } catch(e) {
+    setStatus('err','Sync failed');
+    toast(e.message,'err');
+    document.getElementById('productTbody').innerHTML=`<tr><td colspan="5" class="empty-state">Sync failed — check Settings</td></tr>`;
+  } finally { document.getElementById('syncBtn').disabled=false; }
+}
+
+function setStatus(state,text) {
+  document.getElementById('statusDot').className=state;
+  document.getElementById('statusText').textContent=text;
+}
+
+// ── RENDER ──
+function renderAll() { renderStats(); renderProducts(); renderLocations(); renderMap(); }
+
+function renderStats() {
+  const p=S.products, located=p.filter(x=>x.warehouseLocation).length;
+  const slots=new Set(p.filter(x=>x.warehouseLocation).map(x=>x.warehouseLocation)).size;
+  document.getElementById('statTotal').textContent=p.length;
+  document.getElementById('statLocated').textContent=located;
+  document.getElementById('statUnlocated').textContent=p.length-located;
+  document.getElementById('statSlots').textContent=slots;
+  document.getElementById('sbTotal').textContent=p.length;
+  document.getElementById('sbLocated').textContent=located;
+  document.getElementById('sbSlots').textContent=slots;
+}
+
+function filteredProducts() {
+  const f=S.filter.toLowerCase();
+  let list=S.products;
+  if(f) list=list.filter(p=>p.sku.toLowerCase().includes(f)||p.name.toLowerCase().includes(f)||p.warehouseLocation.toLowerCase().includes(f));
+  return [...list].sort((a,b)=>{
+    if(S.sortCol==='onHand') return(+(a.onHand??-1)-(+(b.onHand??-1)))*S.sortDir;
+    const va=String(a[S.sortCol]??'').toLowerCase(), vb=String(b[S.sortCol]??'').toLowerCase();
+    return va<vb?-S.sortDir:va>vb?S.sortDir:0;
+  });
+}
+
+function renderProducts() {
+  const list=filteredProducts();
+  document.getElementById('productCount').textContent=`${list.length} / ${S.products.length} SKUs`;
+  const tb=document.getElementById('productTbody');
+  if(!list.length){tb.innerHTML=`<tr><td colspan="5" class="empty-state">No products found</td></tr>`;return;}
+  tb.innerHTML=list.map(p=>`
+    <tr>
+      <td class="td-sku">${esc(p.sku)}</td>
+      <td class="td-name"><span title="${esc(p.name)}">${esc(p.name)}</span></td>
+      <td>${p.warehouseLocation?`<span class="loc-tag">⊡ ${esc(p.warehouseLocation)}</span>`:`<span class="loc-tag empty">unlocated</span>`}</td>
+      <td class="td-qty${p.onHand===0?' z':''}">${p.onHand!==null?p.onHand:'—'}</td>
+      <td class="ra">
+        <button class="bg"      onclick="openLocationModal('${p.productId}')">Location</button>
+        <button class="bg blue" onclick="openStockModal('${p.productId}')">Stock</button>
+      </td>
+    </tr>`).join('');
+}
+
+document.querySelectorAll('th[data-col]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.col;
+    if(S.sortCol===col)S.sortDir*=-1; else{S.sortCol=col;S.sortDir=1;}
+    document.querySelectorAll('th').forEach(t=>t.classList.remove('sa','sd'));
+    th.classList.add(S.sortDir===1?'sa':'sd');
+    renderProducts();
+  });
+});
+
+function groupByLocation() {
+  const map=new Map();
+  for(const p of S.products){ if(!p.warehouseLocation)continue; if(!map.has(p.warehouseLocation))map.set(p.warehouseLocation,[]); map.get(p.warehouseLocation).push(p); }
+  return map;
+}
+
+function renderLocations() {
+  const f=S.locFilter.toLowerCase(), map=groupByLocation();
+  const entries=[...map.entries()].filter(([l])=>!f||l.toLowerCase().includes(f)).sort((a,b)=>a[0].localeCompare(b[0]));
+  document.getElementById('locCount').textContent=`${entries.length} slots`;
+  const g=document.getElementById('locGrid');
+  if(!entries.length){g.innerHTML=`<div class="empty-state">No locations found</div>`;return;}
+  g.innerHTML=entries.map(([loc,products])=>`
+    <div class="loc-card">
+      <div class="lc-slot">${esc(loc)}</div>
+      <div class="lc-cnt">${products.length} SKU${products.length!==1?'s':''}</div>
+      <div class="lc-skus">
+        ${products.slice(0,4).map(p=>`<span class="sku-mini">${esc(p.sku)}</span>`).join('')}
+        ${products.length>4?`<span class="lc-more">+${products.length-4}</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function renderMap() {
+  const map=groupByLocation(), zones={};
+  for(const [loc,products] of map.entries()){const z=loc.slice(0,2).toUpperCase()||'??';if(!zones[z])zones[z]=[];zones[z].push({loc,products});}
+  const c=document.getElementById('mapContainer');
+  if(!map.size){c.innerHTML=`<div class="empty-state">No location data — run a Sync first</div>`;return;}
+  c.innerHTML=Object.entries(zones).sort((a,b)=>a[0].localeCompare(b[0])).map(([zone,slots])=>`
+    <div class="zone-block">
+      <div class="zone-hd">
+        <span class="zone-lbl">Zone <strong>${esc(zone)}</strong></span>
+        <div class="zone-line"></div>
+        <span class="zone-cnt">${slots.length} slot${slots.length!==1?'s':''}</span>
+      </div>
+      <div class="slot-grid">
+        ${slots.map(({loc,products})=>{
+          const cls=products.length>1?'multi':'single';
+          return`<div class="slot-cell ${cls}" onclick="openSlotModal('${esc(loc)}')" title="${esc(loc)}">
+            <div class="sc-cnt">${products.length}</div>
+            <div class="sc-name">${esc(loc)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// ── MODALS ──
+let _prod=null;
+const getProduct=id=>S.products.find(p=>String(p.productId)===String(id));
+
+function openLocationModal(id) {
+  _prod=getProduct(id); if(!_prod)return;
+  document.getElementById('locModalSku').textContent=`${_prod.sku} — ${_prod.name}`;
+  document.getElementById('locModalInput').value=_prod.warehouseLocation;
+  openModal('locationModal');
+}
+document.getElementById('locModalSave').addEventListener('click',async()=>{
+  const p=_prod; if(!p)return;
+  const newLoc=document.getElementById('locModalInput').value.trim();
+  const btn=document.getElementById('locModalSave');
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    await api(`/v1proxy/products/${p.productId}`,{method:'PUT',body:JSON.stringify({...p._raw,warehouseLocation:newLoc})});
+    p.warehouseLocation=newLoc; p._raw.warehouseLocation=newLoc;
+    renderAll(); closeModal('locationModal'); toast('Location updated','ok');
+  } catch(e){toast(e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Save Location';}
+});
+
+function openStockModal(id) {
+  _prod=getProduct(id); if(!_prod)return;
+  document.getElementById('stockModalSku').textContent=`${_prod.sku} — ${_prod.name}`;
+  document.getElementById('adjInput').value=_prod.onHand??0;
+  openModal('stockModal');
+}
+document.getElementById('adjDec').addEventListener('click',()=>{const e=document.getElementById('adjInput');e.value=Math.max(0,(parseInt(e.value)||0)-1);});
+document.getElementById('adjInc').addEventListener('click',()=>{const e=document.getElementById('adjInput');e.value=(parseInt(e.value)||0)+1;});
+document.getElementById('stockModalSave').addEventListener('click',async()=>{
+  const p=_prod; if(!p)return;
+  const qty=parseInt(document.getElementById('adjInput').value)||0;
+  const btn=document.getElementById('stockModalSave');
+  btn.disabled=true; btn.textContent='Saving…';
+  const {warehouseId}=cfg();
+  try {
+    await api('/proxy/inventory',{method:'POST',body:JSON.stringify({sku:p.sku,inventory_warehouse_id:warehouseId||undefined,quantity:qty,on_hand:qty})});
+    p.onHand=qty; renderAll(); closeModal('stockModal'); toast(`Stock set to ${qty}`,'ok');
+  } catch(e){toast(e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Set Stock';}
+});
+
+function openSlotModal(loc) {
+  const products=groupByLocation().get(loc)||[];
+  document.getElementById('slotModalTitle').textContent=loc;
+  document.getElementById('slotModalMeta').textContent=`${products.length} SKU${products.length!==1?'s':''} in this slot`;
+  document.getElementById('slotModalList').innerHTML=products.map(p=>`<div class="smr"><span class="s">${esc(p.sku)}</span><span class="n">${esc(p.name)}</span></div>`).join('')||`<div class="empty-state">Empty</div>`;
+  openModal('slotModal');
+}
+
+document.getElementById('settingsBtn').addEventListener('click',()=>{
+  const c=cfg();
+  document.getElementById('cfgUrl').value=c.url;
+  document.getElementById('cfgToken').value=c.token;
+  document.getElementById('cfgWarehouseId').value=c.warehouseId;
+  openModal('settingsModal');
+});
+document.getElementById('cfgSave').addEventListener('click',()=>{
+  const url=document.getElementById('cfgUrl').value.trim();
+  const token=document.getElementById('cfgToken').value.trim();
+  const wid=document.getElementById('cfgWarehouseId').value.trim();
+  if(!url||!token){toast('Worker URL and token are required','err');return;}
+  saveCfg(url,token,wid); closeModal('settingsModal'); syncAll();
+});
+
+const openModal =id=>document.getElementById(id).classList.add('open');
+const closeModal=id=>document.getElementById(id).classList.remove('open');
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
+document.querySelectorAll('.mbk').forEach(bd=>bd.addEventListener('click',e=>{if(e.target===bd)closeModal(bd.id);}));
+
+// ── NAV ──
+document.querySelectorAll('.nav-item[data-page]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.page).classList.add('active');
+  });
+});
+
+// ── SEARCH ──
+document.getElementById('productSearch').addEventListener('input',e=>{S.filter=e.target.value;renderProducts();});
+document.getElementById('locSearch').addEventListener('input',e=>{S.locFilter=e.target.value;renderLocations();});
+
+// ── SYNC BTN ──
+document.getElementById('syncBtn').addEventListener('click',()=>{const c=cfg();if(!c.url||!c.token){openModal('settingsModal');return;}syncAll();});
+
+// ── TOASTS ──
+function toast(msg,type='ok') {
+  const tc=document.getElementById('tc'), el=document.createElement('div');
+  el.className=`toast ${type}`;
+  el.innerHTML=`<span class="ti">${type==='ok'?'✓':'✕'}</span><span>${esc(msg)}</span>`;
+  tc.appendChild(el);
+  setTimeout(()=>{el.classList.add('out');el.addEventListener('animationend',()=>el.remove());},4000);
+}
+
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function timeNow(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+
+// ── BOOT ──
+(function boot(){
+  const c=cfg();
+  if(!c.url||!c.token){
+    openModal('settingsModal');
+    setStatus('err','Not configured');
+    document.getElementById('productTbody').innerHTML=`<tr><td colspan="5" class="empty-state">Open Settings to connect your Worker</td></tr>`;
+  } else { syncAll(); }
+})();
+</script>
+</body>
+</html>
